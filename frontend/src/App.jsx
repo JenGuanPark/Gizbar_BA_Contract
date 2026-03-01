@@ -18,8 +18,11 @@ import zhCN from 'antd/locale/zh_CN';
 const { Header, Content, Footer } = Layout;
 const { Title, Text } = Typography;
 
-// Read from Vercel environment variable or fallback to localhost
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+// Read from environment variable
+// If VITE_API_BASE_URL is set, use it (e.g. for Vercel -> Render)
+// If not set and in production (Docker/VPS), use empty string for relative path (Nginx proxy)
+// If not set and in development, use localhost:8000
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:8000');
 
 const App = () => {
   const [positions, setPositions] = useState([]);
