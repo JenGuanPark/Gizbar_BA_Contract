@@ -188,10 +188,12 @@ def receive_webhook(
             webhook_data = WebhookPayload(**payload)
         else:
             # Fallback for old format or manual testing
+            # If side is missing, default to OPEN_LONG for testing purposes
+            side = payload.get("side", "OPEN_LONG") 
             webhook_data = WebhookPayload(
-                symbol=payload.get("symbol"),
-                price=float(payload.get("entry_price", 0)),
-                action=payload.get("side"),
+                symbol=payload.get("symbol", "ETHUSDT"),
+                price=float(payload.get("entry_price", payload.get("price", 0))),
+                action=side,
                 timestamp=int(time.time()*1000),
                 raw_signal=str(payload)
             )
