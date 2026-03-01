@@ -9,14 +9,10 @@ services:
       - "8000:8000"
 
   frontend:
-    build: 
-      context: ./frontend
-      dockerfile: Dockerfile
+    build: ./frontend
     container_name: gizbar-frontend
     restart: always
     ports:
       - "80:80"
-    volumes:
-      - ./frontend/dist:/usr/share/nginx/html # Mount local dist to container (optional but good for quick updates)
     depends_on:
       - backend
