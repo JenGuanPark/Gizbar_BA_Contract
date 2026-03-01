@@ -125,20 +125,26 @@ class BinanceService:
             return []
             
         try:
-            account = self.client.futures_account()
-            positions = [
-                {
-                    "symbol": p['symbol'],
-                    "positionAmt": float(p['positionAmt']),
-                    "entryPrice": float(p['entryPrice']),
-                    "unRealizedProfit": float(p['unRealizedProfit']),
-                    "leverage": p['leverage'],
-                    "marginType": p['marginType']
-                }
-                for p in account['positions'] 
-                if float(p['positionAmt']) != 0
-            ]
-            return positions
+            # Use futures_position_information instead of futures_account for better position data
+            # This returns all positions including 0 size ones, so we filter
+            positions_info = self.client.futures_position_information()
+            
+            active_positions = []
+            for p in positions_info:
+                amt = float(p['positionAmt'])
+                if amt != 0:
+                    active_positions.append({
+                        "symbol": p['symbol'],
+                        "positionAmt": amt,
+                        "entryPrice": float(p['entryPrice']),
+                        "unRealizedProfit": float(p['unRealizedProfit']),
+                        "leverage": int(p['leverage']),
+                        "marginType": p['marginType'],
+                        "liquidationPrice": float(p.get('liquidationPrice', 0)),
+                        "markPrice": float(p.get('markPrice', 0))
+                    })
+            
+            return active_positions
         except BinanceAPIException as e:
             logger.error(f"Error fetching positions: {e}")
             # Return empty list on error to avoid showing wrong data

@@ -92,6 +92,28 @@ def debug_binance():
         
     return status
 
+@app.get("/api/debug_positions")
+def debug_positions():
+    """
+    Debug endpoint to see raw position data from Binance.
+    """
+    if not binance_service.client:
+        return {"error": "Client not initialized"}
+    
+    try:
+        raw_info = binance_service.client.futures_position_information()
+        # Filter for non-zero positions to keep response small
+        active = [p for p in raw_info if float(p['positionAmt']) != 0]
+        return {
+            "count_raw": len(raw_info),
+            "count_active": len(active),
+            "active_positions": active,
+            # Return first 3 raw positions just to check structure
+            "sample_raw": raw_info[:3] if raw_info else []
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 class SignalPayload(BaseModel):
     symbol: str
     side: str
