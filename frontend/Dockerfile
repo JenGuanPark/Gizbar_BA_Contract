@@ -1,26 +1,7 @@
-# Stage 1: Build the React application
-FROM node:18-alpine as builder
-
-WORKDIR /app
-
-COPY package.json package-lock.json ./
-RUN npm install
-
-COPY . .
-
-# Set API base URL to empty string so requests are relative (handled by Nginx proxy)
-ENV VITE_API_BASE_URL=""
-RUN npm run build
-
-# Stage 2: Serve with Nginx
 FROM nginx:alpine
-
-# Copy built assets
-COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Copy Nginx configuration
+# 这一步假设你已经在本地用 git 传了 dist，或者用 scp 传了 dist
+# 如果你是走的 git push dist 方案，那么 dist 文件夹就在当前目录下
+COPY dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-
 EXPOSE 80
-
 CMD ["nginx", "-g", "daemon off;"]
