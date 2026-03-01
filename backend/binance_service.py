@@ -217,7 +217,26 @@ class BinanceService:
         try:
             # Use futures_position_information instead of futures_account for better position data
             # This returns all positions including 0 size ones, so we filter
-            positions_info = self.client.futures_position_information()
+            
+            # Add retry mechanism for network stability
+            max_retries = 3
+            positions_info = None
+            last_error = None
+            
+            for i in range(max_retries):
+                try:
+                    positions_info = self.client.futures_position_information()
+                    break
+                except Exception as e:
+                    last_error = e
+                    logger.warning(f"Attempt {i+1} failed to fetch positions: {e}")
+                    time.sleep(0.5) # Short sleep before retry
+            
+            if positions_info is None:
+                logger.error(f"Failed to fetch positions after {max_retries} attempts: {last_error}")
+                # Return empty list instead of crashing, to keep frontend alive
+                return []
+
             logger.info(f"Raw positions type: {type(positions_info)}")
             
             # Handle case where API returns a single dict instead of a list
@@ -228,23 +247,33 @@ class BinanceService:
             
             active_positions = []
             for p in positions_info:
-                # The positionAmt is a string, convert to float
-                amt = float(p['positionAmt'])
-                # Some small dust positions might exist, let's filter by a small threshold or just != 0
-                if abs(amt) > 0:
-                    active_positions.append({
-                        # Use symbol + positionSide as unique ID to avoid React key duplication
-                        "id": f"{p['symbol']}_{p.get('positionSide', 'BOTH')}",
-                        "symbol": p['symbol'],
-                        "positionSide": p.get('positionSide', 'BOTH'),
-                        "positionAmt": amt,
-                        "entryPrice": float(p['entryPrice']),
-                        "unRealizedProfit": float(p['unRealizedProfit']),
-                        "leverage": int(p['leverage']),
-                        "marginType": p['marginType'],
-                        "liquidationPrice": float(p.get('liquidationPrice', 0)),
-                        "markPrice": float(p.get('markPrice', 0))
-                    })
+                try:
+                    # The positionAmt is a string, convert to float
+                    amt = float(p['positionAmt'])
+                    
+                    # DEBUG: Print every non-zero position to log to see why it might be skipped
+                    if amt != 0:
+                        logger.info(f"Found position: {p['symbol']} Amt: {amt}")
+                    
+                    # RELAXED FILTER: Show anything with abs(amt) > 0
+                    # If this still fails, we will remove the check entirely next time.
+                    if abs(amt) > 0:
+                        active_positions.append({
+                            # Use symbol + positionSide as unique ID to avoid React key duplication
+                            "id": f"{p['symbol']}_{p.get('positionSide', 'BOTH')}",
+                            "symbol": p['symbol'],
+                            "positionSide": p.get('positionSide', 'BOTH'),
+                            "positionAmt": amt,
+                            "entryPrice": float(p['entryPrice']),
+                            "unRealizedProfit": float(p['unRealizedProfit']),
+                            "leverage": int(p['leverage']),
+                            "marginType": p['marginType'],
+                            "liquidationPrice": float(p.get('liquidationPrice', 0)),
+                            "markPrice": float(p.get('markPrice', 0))
+                        })
+                except Exception as e:
+                    logger.error(f"Error parsing position {p.get('symbol')}: {e}")
+                    continue
             
             logger.info(f"Filtered active positions count: {len(active_positions)}")
             
@@ -253,7 +282,7 @@ class BinanceService:
             self._cache["positions"]["timestamp"] = time.time()
             
             return active_positions
-        except BinanceAPIException as e:
+        except Exception as e:
             logger.error(f"Error fetching positions: {e}")
             # Return empty list on error to avoid showing wrong data
             return []
