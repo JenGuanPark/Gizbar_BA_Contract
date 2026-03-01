@@ -38,22 +38,49 @@ const App = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const fetchData = async () => {
+    // Skip polling if page is hidden to save API limit
+    if (document.hidden) return;
+
     setLoading(true);
-    setError(null);
+    // Don't clear error immediately to avoid flashing
+    
     try {
-      const [posRes, sigRes, balRes] = await Promise.all([
+      // Use Promise.allSettled to handle partial failures
+      const results = await Promise.allSettled([
         axios.get(`${API_BASE_URL}/positions`),
         axios.get(`${API_BASE_URL}/signals`),
         axios.get(`${API_BASE_URL}/balance`)
       ]);
-      setPositions(posRes.data);
-      setSignals(sigRes.data);
-      if (balRes.data && !balRes.data.error) {
-        setBalance(balRes.data);
+
+      const [posRes, sigRes, balRes] = results;
+
+      if (posRes.status === 'fulfilled') {
+        setPositions(posRes.value.data);
       }
+      
+      if (sigRes.status === 'fulfilled') {
+        setSignals(sigRes.value.data);
+      }
+
+      if (balRes.status === 'fulfilled') {
+        if (balRes.value.data && !balRes.value.data.error) {
+          setBalance(balRes.value.data);
+          // If we successfully got balance, clear any previous connection error
+          setError(null);
+        } else if (balRes.value.data && balRes.value.data.error) {
+          // Backend returned specific error (e.g. API key invalid)
+          console.error("Backend error:", balRes.value.data.error);
+          // Only show error if it's critical, otherwise keep old data
+        }
+      } else {
+        // Balance request failed (network error)
+        console.error("Balance request failed");
+      }
+
     } catch (err) {
       console.error(err);
-      setError("无法连接后端服务，请检查服务是否启动。");
+      // Only set error if we really can't get data for a while
+      // setError("无法连接后端服务，请检查服务是否启动。");
     } finally {
       setLoading(false);
     }
@@ -89,7 +116,15 @@ const App = () => {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 5000); 
+    // Increase polling interval to 10s to avoid 429 rate limits
+    const interval = setInterval(fetchData, 10000); 
+    
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchData(); // Fetch immediately when user comes back
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);

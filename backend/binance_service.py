@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 API_KEY = os.getenv("BINANCE_API_KEY")
 API_SECRET = os.getenv("BINANCE_API_SECRET")
-# Default to True for safety if not set
-TESTNET = os.getenv("BINANCE_TESTNET", "True").lower() == "true"
+# Default to False for production unless explicitly set to True
+TESTNET = os.getenv("BINANCE_TESTNET", "False").lower() == "true"
 
 class BinanceService:
     def __init__(self):
@@ -81,18 +81,20 @@ class BinanceService:
             return 0.0
 
     def get_account_summary(self):
-        # Demo data for fallback
-        demo_data = {
-            "totalWalletBalance": 10000.0,
-            "totalUnrealizedProfit": 150.5,
-            "totalMarginBalance": 10150.5,
-            "availableBalance": 9500.0,
-            "totalHistoryPnl": 1250.80, # Demo history PnL
-            "is_demo": True
+        # Default empty structure
+        empty_data = {
+            "totalWalletBalance": 0.0,
+            "totalUnrealizedProfit": 0.0,
+            "totalMarginBalance": 0.0,
+            "availableBalance": 0.0,
+            "totalHistoryPnl": 0.0,
+            "is_demo": False,
+            "error": None
         }
 
         if not self.client:
-            return demo_data
+            empty_data["error"] = "Client not initialized"
+            return empty_data
             
         try:
             account = self.client.futures_account()
@@ -115,32 +117,12 @@ class BinanceService:
             }
         except BinanceAPIException as e:
             logger.error(f"Error fetching account summary: {e}")
-            # Return demo data on error so UI looks good
-            return demo_data
+            empty_data["error"] = str(e)
+            return empty_data
 
     def get_positions(self):
-        # Demo positions for fallback
-        demo_positions = [
-            {
-                "symbol": "BTCUSDT",
-                "positionAmt": 0.5,
-                "entryPrice": 65000.0,
-                "unRealizedProfit": 120.5,
-                "leverage": 10,
-                "marginType": "isolated"
-            },
-            {
-                "symbol": "ETHUSDT",
-                "positionAmt": -5.0,
-                "entryPrice": 3500.0,
-                "unRealizedProfit": -30.0,
-                "leverage": 20,
-                "marginType": "cross"
-            }
-        ]
-
         if not self.client:
-            return demo_positions
+            return []
             
         try:
             account = self.client.futures_account()
@@ -159,7 +141,8 @@ class BinanceService:
             return positions
         except BinanceAPIException as e:
             logger.error(f"Error fetching positions: {e}")
-            return demo_positions
+            # Return empty list on error to avoid showing wrong data
+            return []
 
     def get_balance(self, asset='USDT'):
         if not self.client:
