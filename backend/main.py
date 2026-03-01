@@ -187,9 +187,12 @@ def receive_webhook(
         if "action" in payload:
             webhook_data = WebhookPayload(**payload)
         else:
-            # Fallback for old format or manual testing
-            # If side is missing, default to OPEN_LONG for testing purposes
-            side = payload.get("side", "OPEN_LONG") 
+            # Fallback for old format
+            # Require explicit side or action, do not default to OPEN_LONG anymore
+            if "side" not in payload and "action" not in payload:
+                raise HTTPException(status_code=422, detail="Missing 'action' or 'side' in payload")
+            
+            side = payload.get("side")
             webhook_data = WebhookPayload(
                 symbol=payload.get("symbol", "ETHUSDT"),
                 price=float(payload.get("entry_price", payload.get("price", 0))),
@@ -345,8 +348,9 @@ def get_balance():
 
 @app.get("/signals", response_model=List[Signal])
 def get_signals(session: Session = Depends(get_session)):
-    signals = session.exec(select(Signal)).all()
-    return signals
+    # Temporarily return empty list to hide old test data as requested
+    # signals = session.exec(select(Signal)).all()
+    return []
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
