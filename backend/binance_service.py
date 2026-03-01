@@ -23,12 +23,15 @@ class BinanceService:
         if API_KEY and API_SECRET:
             try:
                 self.client = Client(API_KEY, API_SECRET, testnet=TESTNET)
-                logger.info(f"Binance Client initialized (Testnet: {TESTNET})")
+                # Verify connection and API key validity
+                self.client.get_account_status()
+                logger.info(f"Binance Client initialized successfully (Testnet: {TESTNET})")
                 self._load_exchange_info()
             except Exception as e:
                 logger.error(f"Failed to initialize Binance Client: {e}")
+                self.client = None # Ensure client is None if initialization fails
         else:
-            logger.warning("BINANCE_API_KEY or BINANCE_API_SECRET not set.")
+            logger.warning("BINANCE_API_KEY or BINANCE_API_SECRET not set in environment variables.")
 
     def _load_exchange_info(self):
         try:
