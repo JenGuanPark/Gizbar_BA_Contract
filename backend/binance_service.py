@@ -227,7 +227,10 @@ class BinanceService:
                 # Some small dust positions might exist, let's filter by a small threshold or just != 0
                 if abs(amt) > 0:
                     active_positions.append({
+                        # Use symbol + positionSide as unique ID to avoid React key duplication
+                        "id": f"{p['symbol']}_{p.get('positionSide', 'BOTH')}",
                         "symbol": p['symbol'],
+                        "positionSide": p.get('positionSide', 'BOTH'),
                         "positionAmt": amt,
                         "entryPrice": float(p['entryPrice']),
                         "unRealizedProfit": float(p['unRealizedProfit']),

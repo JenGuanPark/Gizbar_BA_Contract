@@ -352,7 +352,7 @@ const App = () => {
                 <Table 
                   columns={positionColumns} 
                   dataSource={positions} 
-                  rowKey="symbol" 
+                  rowKey="id" 
                   pagination={false}
                   locale={{ emptyText: <Empty description="当前空仓，等待信号..." /> }}
                 />
