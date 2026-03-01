@@ -51,6 +51,47 @@ def get_system_info():
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/api/debug")
+def debug_binance():
+    """
+    Debug endpoint to check Binance connection status and configuration.
+    """
+    import os
+    
+    api_key = os.getenv("BINANCE_API_KEY")
+    api_secret = os.getenv("BINANCE_API_SECRET")
+    testnet = os.getenv("BINANCE_TESTNET", "False").lower() == "true"
+    
+    status = {
+        "env_vars": {
+            "BINANCE_API_KEY_SET": bool(api_key),
+            "BINANCE_API_SECRET_SET": bool(api_secret),
+            "BINANCE_TESTNET": testnet
+        },
+        "connection": "Unknown",
+        "error": None
+    }
+    
+    if not api_key or not api_secret:
+        status["connection"] = "Failed"
+        status["error"] = "API Key or Secret missing in environment variables"
+        return status
+        
+    try:
+        # Try to use the service's client
+        if binance_service.client:
+            account = binance_service.client.get_account_status()
+            status["connection"] = "Success"
+            status["account_status"] = account
+        else:
+            status["connection"] = "Failed"
+            status["error"] = "Binance client not initialized in service (check server logs)"
+    except Exception as e:
+        status["connection"] = "Failed"
+        status["error"] = str(e)
+        
+    return status
+
 class SignalPayload(BaseModel):
     symbol: str
     side: str
