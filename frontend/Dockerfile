@@ -1,14 +1,12 @@
-# Stage 1: Build the React application
-FROM node:18-alpine as build
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npm run build
-
-# Stage 2: Serve the application with Nginx
+# Stage 1: Serve the pre-built application with Nginx
+# We assume the `dist` folder is already built locally and copied here
 FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
+
+# Copy the pre-built dist folder from the build context (which will be ./dist)
+COPY dist /usr/share/nginx/html
+
+# Copy custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
