@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-binance
+sqlmodel
+python-dotenv
+httpx
+pydantic
+psycopg2-binary
+gunicorn
