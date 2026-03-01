@@ -105,11 +105,37 @@ def debug_positions():
         raw_info = binance_service.client.futures_position_information()
         # Filter for non-zero positions to keep response small
         active = [p for p in raw_info if float(p['positionAmt']) != 0]
+        
+        # Also run the parsing logic to see if it fails
+        parsed_results = []
+        for p in active:
+            try:
+                # Safe parsing logic simulation
+                def safe_float(val, default=0.0):
+                    try: return float(val) if val is not None else default
+                    except: return default
+
+                def safe_int(val, default=1):
+                    try: return int(float(val)) if val is not None else default
+                    except: return default
+
+                parsed = {
+                    "symbol": p.get('symbol', 'UNKNOWN'),
+                    "amt": float(p.get('positionAmt', 0)),
+                    "leverage": safe_int(p.get('leverage'), 1),
+                    "entryPrice": safe_float(p.get('entryPrice')),
+                    "unRealizedProfit": safe_float(p.get('unRealizedProfit')),
+                    "status": "OK"
+                }
+                parsed_results.append(parsed)
+            except Exception as e:
+                parsed_results.append({"symbol": p.get('symbol'), "error": str(e), "status": "ERROR"})
+
         return {
             "count_raw": len(raw_info),
             "count_active": len(active),
-            "active_positions": active,
-            # Return first 3 raw positions just to check structure
+            "active_positions_raw": active,
+            "parsing_check": parsed_results,
             "sample_raw": raw_info[:3] if raw_info else []
         }
     except Exception as e:

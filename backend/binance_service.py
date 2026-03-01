@@ -249,22 +249,36 @@ class BinanceService:
                     amt = float(amt_str)
                     
                     # LOG EVERY POSITION for debugging
-                    logger.info(f"Checking position: {p.get('symbol')} amt={amt}")
+                    # logger.info(f"Checking position: {p.get('symbol')} amt={amt}")
                     
                     if abs(amt) > 0:
-                        logger.info(f"!!! KEEPING ACTIVE POSITION !!!: {p.get('symbol')}")
+                        logger.info(f"Found active position: {p.get('symbol')} amt={amt}")
+                        
+                        # Safe parsing helpers
+                        def safe_float(val, default=0.0):
+                            try:
+                                return float(val) if val is not None else default
+                            except:
+                                return default
+
+                        def safe_int(val, default=1):
+                            try:
+                                return int(float(val)) if val is not None else default
+                            except:
+                                return default
+
                         active_positions.append({
                             # Use symbol + positionSide as unique ID to avoid React key duplication
-                            "id": f"{p['symbol']}_{p.get('positionSide', 'BOTH')}",
-                            "symbol": p['symbol'],
+                            "id": f"{p.get('symbol', 'UNKNOWN')}_{p.get('positionSide', 'BOTH')}",
+                            "symbol": p.get('symbol', 'UNKNOWN'),
                             "positionSide": p.get('positionSide', 'BOTH'),
                             "positionAmt": amt,
-                            "entryPrice": float(p.get('entryPrice', 0)),
-                            "unRealizedProfit": float(p.get('unRealizedProfit', 0)),
-                            "leverage": int(p.get('leverage', 1)),
+                            "entryPrice": safe_float(p.get('entryPrice')),
+                            "unRealizedProfit": safe_float(p.get('unRealizedProfit')),
+                            "leverage": safe_int(p.get('leverage'), 1),
                             "marginType": p.get('marginType', 'cross'),
-                            "liquidationPrice": float(p.get('liquidationPrice', 0)),
-                            "markPrice": float(p.get('markPrice', 0))
+                            "liquidationPrice": safe_float(p.get('liquidationPrice')),
+                            "markPrice": safe_float(p.get('markPrice'))
                         })
                 except Exception as e:
                     logger.error(f"Error processing position {p.get('symbol', 'unknown')}: {e}")

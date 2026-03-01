@@ -120,8 +120,8 @@ const App = () => {
   useEffect(() => {
     fetchData();
     // STOP AUTOMATIC POLLING to prevent IP ban (Error -1003)
-    // Users must refresh manually for now until IP is unbanned
-    const interval = setInterval(fetchData, 3000); 
+    // increased interval to 10s to be safe
+    const interval = setInterval(fetchData, 10000); 
     
     const handleVisibilityChange = () => {
       if (!document.hidden) {
