@@ -218,6 +218,12 @@ class BinanceService:
             # Use futures_position_information instead of futures_account for better position data
             # This returns all positions including 0 size ones, so we filter
             positions_info = self.client.futures_position_information()
+            logger.info(f"Raw positions type: {type(positions_info)}")
+            
+            # Handle case where API returns a single dict instead of a list
+            if isinstance(positions_info, dict):
+                positions_info = [positions_info]
+                
             logger.info(f"Raw positions count from Binance: {len(positions_info)}")
             
             active_positions = []
