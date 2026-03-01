@@ -115,6 +115,13 @@ def debug_positions():
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/api/debug/positions_raw")
+def debug_positions_raw():
+    """
+    Direct pass-through of raw position data from Binance
+    """
+    return binance_service.get_raw_positions()
+
 class SignalPayload(BaseModel):
     symbol: str
     side: str

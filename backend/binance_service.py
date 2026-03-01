@@ -182,6 +182,7 @@ class BinanceService:
             # Use futures_position_information instead of futures_account for better position data
             # This returns all positions including 0 size ones, so we filter
             positions_info = self.client.futures_position_information()
+            logger.info(f"Raw positions count from Binance: {len(positions_info)}")
             
             active_positions = []
             for p in positions_info:
@@ -198,6 +199,8 @@ class BinanceService:
                         "markPrice": float(p.get('markPrice', 0))
                     })
             
+            logger.info(f"Filtered active positions count: {len(active_positions)}")
+            
             # Update cache
             self._cache["positions"]["data"] = active_positions
             self._cache["positions"]["timestamp"] = time.time()
@@ -207,6 +210,15 @@ class BinanceService:
             logger.error(f"Error fetching positions: {e}")
             # Return empty list on error to avoid showing wrong data
             return []
+
+    def get_raw_positions(self):
+        """Debug method to get raw position data without filtering"""
+        if not self.client:
+            return {"error": "Client not initialized"}
+        try:
+            return self.client.futures_position_information()
+        except Exception as e:
+            return {"error": str(e)}
 
     def get_balance(self, asset='USDT'):
         # Check cache (sharing TTL with other calls but separate key)
