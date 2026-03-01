@@ -30,7 +30,9 @@ class BinanceService:
                 self._load_exchange_info()
             except Exception as e:
                 logger.error(f"Failed to initialize Binance Client: {e}")
-                self.client = None # Ensure client is None if initialization fails
+                self.client = None
+                # Raise error to make it visible in logs
+                raise e
         else:
             logger.warning("BINANCE_API_KEY or BINANCE_API_SECRET not set in environment variables.")
 
