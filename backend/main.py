@@ -33,6 +33,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+def read_root():
+    return {"status": "ok", "message": "Gizbar Trading Bot Backend is running"}
+
 class SignalPayload(BaseModel):
     symbol: str
     side: str
