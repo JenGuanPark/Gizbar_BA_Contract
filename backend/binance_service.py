@@ -23,7 +23,32 @@ class BinanceService:
         if API_KEY and API_SECRET:
             try:
                 # Add recvWindow to handle timestamp sync issues on cloud servers
-                self.client = Client(API_KEY, API_SECRET, testnet=TESTNET, requests_params={"recvWindow": 60000})
+                self.client = Client(API_KEY, API_SECRET, testnet=TESTNET)
+                # Apply requests_params after initialization if possible, or set it via private attribute if needed
+                # But python-binance might not support passing it in __init__ directly in all versions.
+                # Let's try setting it on the session directly or checking library version support.
+                # Actually, python-binance Client init signature: (api_key, api_secret, requests_params=None, ...)
+                # Wait, the error "Session.request() got an unexpected keyword argument 'recvWindow'"
+                # suggests that 'requests_params' was passed incorrectly down to the requests library.
+                # 'requests_params' is meant for options like 'timeout', 'proxies', etc.
+                # 'recvWindow' is a Binance API parameter, NOT a requests parameter.
+                # It should be passed to individual API calls, OR set as a default.
+                
+                # Correct way: We don't pass recvWindow in init like this for python-binance usually?
+                # Actually, checking source: Client(..., requests_params=None)
+                # It seems we should NOT put recvWindow in requests_params.
+                # We can set a default recvWindow property on the client if supported, or pass it in calls.
+                # But to fix the immediate crash:
+                
+                # Revert to standard init
+                self.client = Client(API_KEY, API_SECRET, testnet=TESTNET)
+                
+                # To solve the timestamp issue, we can try to sync time or just use a default recvWindow in our wrapper methods
+                # or monkey patch. But let's look at where we can set it.
+                # It seems we should just pass recvWindow=60000 to methods that need it.
+                
+                # However, for now, let's just initialize safely without the crashing parameter.
+                
                 # Verify connection and API key validity
                 self.client.get_account_status()
                 logger.info(f"Binance Client initialized successfully (Testnet: {TESTNET})")
