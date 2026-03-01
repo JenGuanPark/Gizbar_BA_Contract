@@ -116,12 +116,13 @@ const App = () => {
 
   useEffect(() => {
     fetchData();
-    // Increase polling interval to 10s to avoid 429 rate limits
-    const interval = setInterval(fetchData, 10000); 
+    // STOP AUTOMATIC POLLING to prevent IP ban (Error -1003)
+    // Users must refresh manually for now until IP is unbanned
+    // const interval = setInterval(fetchData, 10000); 
     
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        fetchData(); // Fetch immediately when user comes back
+        // fetchData(); // Also disable auto-fetch on visibility change
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);

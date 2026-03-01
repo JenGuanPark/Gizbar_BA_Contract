@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import time
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,6 +22,14 @@ class BinanceService:
     def __init__(self):
         self.client = None
         self.exchange_info = {}
+        # Simple cache to prevent IP bans
+        self._cache = {
+            "account": {"data": None, "timestamp": 0},
+            "positions": {"data": None, "timestamp": 0},
+            "balance": {"data": None, "timestamp": 0}
+        }
+        self._cache_ttl = 5 # seconds
+        
         if API_KEY and API_SECRET:
             try:
                 # Add recvWindow to handle timestamp sync issues on cloud servers
@@ -109,6 +119,11 @@ class BinanceService:
             return 0.0
 
     def get_account_summary(self):
+        # Check cache
+        if time.time() - self._cache["account"]["timestamp"] < self._cache_ttl:
+            if self._cache["account"]["data"]:
+                return self._cache["account"]["data"]
+
         # Default empty structure
         empty_data = {
             "totalWalletBalance": 0.0,
@@ -135,7 +150,7 @@ class BinanceService:
             # Fetch historical PnL
             history_pnl = self.get_total_history_pnl()
             
-            return {
+            data = {
                 "totalWalletBalance": float(account.get('totalWalletBalance', 0.0)),
                 "totalUnrealizedProfit": float(account.get('totalUnrealizedProfit', 0.0)),
                 "totalMarginBalance": float(account.get('totalMarginBalance', 0.0)),
@@ -143,12 +158,23 @@ class BinanceService:
                 "totalHistoryPnl": history_pnl,
                 "is_demo": False
             }
+            
+            # Update cache
+            self._cache["account"]["data"] = data
+            self._cache["account"]["timestamp"] = time.time()
+            
+            return data
         except BinanceAPIException as e:
             logger.error(f"Error fetching account summary: {e}")
             empty_data["error"] = str(e)
             return empty_data
 
     def get_positions(self):
+        # Check cache
+        if time.time() - self._cache["positions"]["timestamp"] < self._cache_ttl:
+            if self._cache["positions"]["data"] is not None:
+                return self._cache["positions"]["data"]
+
         if not self.client:
             return []
             
@@ -172,6 +198,10 @@ class BinanceService:
                         "markPrice": float(p.get('markPrice', 0))
                     })
             
+            # Update cache
+            self._cache["positions"]["data"] = active_positions
+            self._cache["positions"]["timestamp"] = time.time()
+            
             return active_positions
         except BinanceAPIException as e:
             logger.error(f"Error fetching positions: {e}")
@@ -179,14 +209,27 @@ class BinanceService:
             return []
 
     def get_balance(self, asset='USDT'):
+        # Check cache (sharing TTL with other calls but separate key)
+        # Actually balance is usually part of account summary, but if called separately:
+        if asset == 'USDT' and time.time() - self._cache["balance"]["timestamp"] < self._cache_ttl:
+             if self._cache["balance"]["data"] is not None:
+                 return self._cache["balance"]["data"]
+
         if not self.client:
             return 0.0
         try:
             account = self.client.futures_account()
+            val = 0.0
             for balance in account['assets']:
                 if balance['asset'] == asset:
-                    return float(balance['availableBalance'])
-            return 0.0
+                    val = float(balance['availableBalance'])
+                    break
+            
+            if asset == 'USDT':
+                self._cache["balance"]["data"] = val
+                self._cache["balance"]["timestamp"] = time.time()
+                
+            return val
         except BinanceAPIException as e:
             logger.error(f"Error fetching balance: {e}")
             return 0.0
