@@ -28,7 +28,7 @@ class BinanceService:
             "positions": {"data": None, "timestamp": 0},
             "balance": {"data": None, "timestamp": 0}
         }
-        self._cache_ttl = 5 # seconds
+        self._cache_ttl = 2 # reduced to 2 seconds for faster updates
         
         if API_KEY and API_SECRET:
             try:

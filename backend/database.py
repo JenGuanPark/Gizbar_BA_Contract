@@ -25,6 +25,17 @@ else:
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
+    
+    # Simple migration: Try adding 'reason' column if it doesn't exist
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE signal ADD COLUMN reason VARCHAR"))
+            conn.commit()
+            print("Added reason column")
+        except Exception:
+            # Ignore if column exists
+            pass
 
 def get_session():
     with Session(engine) as session:

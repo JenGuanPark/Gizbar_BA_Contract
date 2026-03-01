@@ -5,12 +5,13 @@ from datetime import datetime
 class Signal(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     symbol: str
-    side: str  # BUY or SELL
+    side: str  # OPEN_LONG, OPEN_SHORT, CLOSE
     entry_price: Optional[float] = None
     stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     raw_message: str
+    reason: Optional[str] = None # Added field for signal reason
 
 class Trade(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

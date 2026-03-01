@@ -56,6 +56,8 @@ const App = () => {
       ]);
 
       const [posRes, sigRes, balRes] = results;
+      
+      console.log("Debug: Positions Response", posRes);
 
       if (posRes.status === 'fulfilled') {
         setPositions(posRes.value.data);
@@ -221,20 +223,36 @@ const App = () => {
     {
       title: '信号',
       key: 'signal',
-      render: (_, record) => (
-        <Space>
-          <Text strong>{record.symbol}</Text>
-          <Tag color={record.side === 'BUY' ? 'green' : 'red'}>
-            {record.side === 'BUY' ? '多' : '空'}
-          </Tag>
-        </Space>
-      ),
+      render: (_, record) => {
+        let color = 'default';
+        let text = record.side;
+        
+        if (record.side === 'BUY' || record.side === 'OPEN_LONG') {
+            color = '#00b96b'; // Green
+            text = '做多 Long';
+        } else if (record.side === 'SELL' || record.side === 'OPEN_SHORT') {
+            color = '#ff4d4f'; // Red
+            text = '做空 Short';
+        } else if (record.side === 'CLOSE') {
+            color = 'orange';
+            text = '平仓 Close';
+        }
+
+        return (
+            <Space>
+              <Text strong>{record.symbol}</Text>
+              <Tag color={color}>
+                {text}
+              </Tag>
+            </Space>
+        );
+      },
     },
     {
       title: '价格',
       dataIndex: 'entry_price',
       key: 'entry_price',
-      render: val => val ? val : '市价',
+      render: val => val ? parseFloat(val).toFixed(2) : '市价',
     },
   ];
 
@@ -356,6 +374,18 @@ const App = () => {
                   pagination={false}
                   locale={{ emptyText: <Empty description="当前空仓，等待信号..." /> }}
                 />
+                
+                {/* DEBUG INFO: Only show if we have balance (connected) but no positions */}
+                {balance.totalWalletBalance > 0 && positions.length === 0 && (
+                   <div style={{ marginTop: 20, padding: 10, background: '#333', borderRadius: 4 }}>
+                      <Text type="warning" style={{ display: 'block', marginBottom: 5 }}>调试信息 (Debug Info):</Text>
+                      <Text style={{ color: '#aaa', fontSize: 12 }}>
+                        Backend URL: {API_BASE_URL}<br/>
+                        Last Update: {new Date().toLocaleTimeString()}<br/>
+                        Positions Length: {positions.length}
+                      </Text>
+                   </div>
+                )}
               </Card>
             </Col>
 

@@ -148,6 +148,18 @@ def debug_positions_raw():
     """
     return binance_service.get_raw_positions()
 
+import time
+
+import re
+
+class WebhookPayload(BaseModel):
+    symbol: str
+    price: float
+    action: str  # OPEN_LONG, OPEN_SHORT, CLOSE
+    reason: Optional[str] = None
+    timestamp: int
+    raw_signal: Optional[str] = None
+
 class SignalPayload(BaseModel):
     symbol: str
     side: str
@@ -155,69 +167,148 @@ class SignalPayload(BaseModel):
     stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
     quantity: Optional[float] = None
-    usdt_amount: Optional[float] = None # New: specify quantity by USDT amount
+    usdt_amount: Optional[float] = None 
     leverage: Optional[int] = 10
 
 @app.post("/webhook")
-def receive_signal(payload: SignalPayload, session: Session = Depends(get_session)):
-    # Log signal to DB
+def receive_webhook(
+    payload: dict, 
+    token: str, 
+    session: Session = Depends(get_session)
+):
+    # 1. Authentication
+    expected_token = "my_secure_webhook_secret" # TODO: Move to env var
+    if token != expected_token:
+        raise HTTPException(status_code=403, detail="Invalid webhook token")
+
+    # Manually parse payload to WebhookPayload to handle potential extra fields or type coercion better
+    try:
+        # Check if it's the new format (action/price) or old format (side/entry_price)
+        if "action" in payload:
+            webhook_data = WebhookPayload(**payload)
+        else:
+            # Fallback for old format or manual testing
+            webhook_data = WebhookPayload(
+                symbol=payload.get("symbol"),
+                price=float(payload.get("entry_price", 0)),
+                action=payload.get("side"),
+                timestamp=int(time.time()*1000),
+                raw_signal=str(payload)
+            )
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Invalid payload format: {str(e)}")
+
+    # 2. Parse SL/TP from raw_signal
+    stop_loss = None
+    take_profit = None
+    
+    if webhook_data.raw_signal:
+        # Example: 🛑 止损(SL): 74.40
+        sl_match = re.search(r"止损\(SL\):\s*([\d\.]+)", webhook_data.raw_signal)
+        if sl_match:
+            try:
+                stop_loss = float(sl_match.group(1))
+            except:
+                pass
+        
+        # Example assumption: ✅ 止盈(TP): 80.00 (Standard format often used)
+        tp_match = re.search(r"止盈\(TP\):\s*([\d\.]+)", webhook_data.raw_signal)
+        if tp_match:
+            try:
+                take_profit = float(tp_match.group(1))
+            except:
+                pass
+
+    # 3. Log signal to DB
     signal = Signal(
-        symbol=payload.symbol,
-        side=payload.side,
-        entry_price=payload.entry_price,
-        stop_loss=payload.stop_loss,
-        take_profit=payload.take_profit,
-        raw_message=str(payload.dict())
+        symbol=webhook_data.symbol,
+        side=webhook_data.action,
+        entry_price=webhook_data.price,
+        stop_loss=stop_loss,
+        take_profit=take_profit,
+        raw_message=webhook_data.raw_signal or "",
+        reason=webhook_data.reason
     )
     session.add(signal)
     session.commit()
     session.refresh(signal)
 
-    # Execute trade logic
-    # Priority: 1. quantity from signal, 2. calculated from usdt_amount, 3. default small amount
-    quantity = payload.quantity
-    if not quantity and payload.usdt_amount:
-        quantity = binance_service.calculate_quantity_by_usdt(
-            payload.symbol, 
-            payload.usdt_amount, 
-            payload.leverage
-        )
-    
-    if not quantity:
-        quantity = 0.001 # Default small amount for safety
-
+    # 4. Execute Trade Logic
     try:
-        if payload.side.upper() == "CLOSE":
-             order = binance_service.close_position(symbol=payload.symbol)
-        else:
-             order = binance_service.place_order(
-                symbol=payload.symbol,
-                side=payload.side,
+        if webhook_data.action == "CLOSE":
+            # Close all positions for this symbol
+            order = binance_service.close_position(symbol=webhook_data.symbol)
+            if "orderId" in order:
+                trade = Trade(
+                    signal_id=signal.id,
+                    symbol=webhook_data.symbol,
+                    side="CLOSE",
+                    order_id=str(order["orderId"]),
+                    price=float(order.get("avgPrice", 0.0)),
+                    quantity=float(order.get("executedQty", 0.0)),
+                    status="FILLED"
+                )
+                session.add(trade)
+                session.commit()
+                return {"status": "success", "action": "CLOSE", "order": order}
+            else:
+                return {"status": "error", "message": str(order)}
+
+        elif webhook_data.action in ["OPEN_LONG", "OPEN_SHORT"]:
+            # Determine side
+            side = "BUY" if webhook_data.action == "OPEN_LONG" else "SELL"
+            
+            # Default trade settings (TODO: Make configurable)
+            usdt_amount = 50.0  # Default trade size in USDT
+            leverage = 10       # Default leverage
+            
+            # Calculate quantity
+            quantity = binance_service.calculate_quantity_by_usdt(
+                webhook_data.symbol, 
+                usdt_amount, 
+                leverage
+            )
+            
+            if quantity <= 0:
+                return {"status": "error", "message": "Calculated quantity is 0"}
+
+            # Place Order
+            order = binance_service.place_order(
+                symbol=webhook_data.symbol,
+                side=side,
                 quantity=quantity,
-                leverage=payload.leverage,
-                stop_loss=payload.stop_loss,
-                take_profit=payload.take_profit
-             )
+                leverage=leverage,
+                stop_loss=stop_loss,
+                take_profit=take_profit
+            )
+            
+            if "orderId" in order:
+                 trade = Trade(
+                    signal_id=signal.id,
+                    symbol=webhook_data.symbol,
+                    side=side,
+                    order_id=str(order["orderId"]),
+                    price=float(order.get("avgPrice", 0.0)),
+                    quantity=quantity,
+                    status="FILLED"
+                 )
+                 session.add(trade)
+                 session.commit()
+                 return {"status": "success", "action": webhook_data.action, "order": order}
+            else:
+                 return {"status": "error", "message": str(order)}
         
-        # Log trade to DB
-        if "orderId" in order:
-             trade = Trade(
-                signal_id=signal.id,
-                symbol=payload.symbol,
-                side=payload.side,
-                order_id=str(order["orderId"]),
-                price=float(order["avgPrice"]) if "avgPrice" in order else 0.0,
-                quantity=quantity,
-                status="FILLED"
-             )
-             session.add(trade)
-             session.commit()
-             return {"status": "success", "order": order}
         else:
-             return {"status": "error", "message": str(order)}
+            return {"status": "error", "message": f"Unknown action: {webhook_data.action}"}
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@app.post("/api/manual_signal")
+def manual_signal(payload: SignalPayload, session: Session = Depends(get_session)):
+    # Kept for manual testing or frontend manual signals if needed
+    # ... (Logic similar to old webhook)
+    pass
 
 @app.post("/close-position")
 def close_position(payload: SignalPayload, session: Session = Depends(get_session)):
