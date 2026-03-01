@@ -22,7 +22,8 @@ class BinanceService:
         self.exchange_info = {}
         if API_KEY and API_SECRET:
             try:
-                self.client = Client(API_KEY, API_SECRET, testnet=TESTNET)
+                # Add recvWindow to handle timestamp sync issues on cloud servers
+                self.client = Client(API_KEY, API_SECRET, testnet=TESTNET, requests_params={"recvWindow": 60000})
                 # Verify connection and API key validity
                 self.client.get_account_status()
                 logger.info(f"Binance Client initialized successfully (Testnet: {TESTNET})")

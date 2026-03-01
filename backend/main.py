@@ -80,9 +80,10 @@ def debug_binance():
     try:
         # Try to use the service's client
         if binance_service.client:
-            account = binance_service.client.get_account_status()
+            # Check futures account specifically
+            account = binance_service.client.futures_account()
             status["connection"] = "Success"
-            status["account_status"] = account
+            status["account_status"] = {"status": "Normal", "canTrade": account.get("canTrade", False)}
         else:
             status["connection"] = "Failed"
             status["error"] = "Binance client not initialized in service (check server logs)"
