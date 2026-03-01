@@ -237,49 +237,46 @@ class BinanceService:
                 # Return empty list instead of crashing, to keep frontend alive
                 return []
 
-            logger.info(f"Raw positions type: {type(positions_info)}")
-            
             # Handle case where API returns a single dict instead of a list
             if isinstance(positions_info, dict):
                 positions_info = [positions_info]
                 
-            logger.info(f"Raw positions count from Binance: {len(positions_info)}")
-            
             active_positions = []
             for p in positions_info:
                 try:
                     # The positionAmt is a string, convert to float
-                    amt = float(p['positionAmt'])
+                    amt_str = p.get('positionAmt', '0')
+                    amt = float(amt_str)
                     
-                    # DEBUG: Print every non-zero position to log to see why it might be skipped
-                    if amt != 0:
-                        logger.info(f"Found position: {p['symbol']} Amt: {amt}")
+                    # LOG EVERY POSITION for debugging
+                    logger.info(f"Checking position: {p.get('symbol')} amt={amt}")
                     
-                    # RELAXED FILTER: Show anything with abs(amt) > 0
-                    # If this still fails, we will remove the check entirely next time.
                     if abs(amt) > 0:
+                        logger.info(f"!!! KEEPING ACTIVE POSITION !!!: {p.get('symbol')}")
                         active_positions.append({
                             # Use symbol + positionSide as unique ID to avoid React key duplication
                             "id": f"{p['symbol']}_{p.get('positionSide', 'BOTH')}",
                             "symbol": p['symbol'],
                             "positionSide": p.get('positionSide', 'BOTH'),
                             "positionAmt": amt,
-                            "entryPrice": float(p['entryPrice']),
-                            "unRealizedProfit": float(p['unRealizedProfit']),
-                            "leverage": int(p['leverage']),
-                            "marginType": p['marginType'],
+                            "entryPrice": float(p.get('entryPrice', 0)),
+                            "unRealizedProfit": float(p.get('unRealizedProfit', 0)),
+                            "leverage": int(p.get('leverage', 1)),
+                            "marginType": p.get('marginType', 'cross'),
                             "liquidationPrice": float(p.get('liquidationPrice', 0)),
                             "markPrice": float(p.get('markPrice', 0))
                         })
                 except Exception as e:
-                    logger.error(f"Error parsing position {p.get('symbol')}: {e}")
+                    logger.error(f"Error processing position {p.get('symbol', 'unknown')}: {e}")
                     continue
             
-            logger.info(f"Filtered active positions count: {len(active_positions)}")
+            logger.info(f"Final active positions count: {len(active_positions)}")
             
             # Update cache
-            self._cache["positions"]["data"] = active_positions
-            self._cache["positions"]["timestamp"] = time.time()
+            self._cache["positions"] = {
+                "timestamp": time.time(),
+                "data": active_positions
+            }
             
             return active_positions
         except Exception as e:
