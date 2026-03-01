@@ -20,9 +20,9 @@ app = FastAPI(lifespan=lifespan)
 origins = [
     "http://localhost:5173", # Local development
     "http://localhost:3000",
-    # Add your Vercel production domains here later
-    # "https://your-app-name.vercel.app"
-    "*" # Temporarily allow all for easier setup (you can restrict this later)
+    "https://gizbar-ba-contract.vercel.app", # Vercel production domain
+    # Add any other domains if needed
+    "*" # Temporarily allow all for easier setup
 ]
 
 app.add_middleware(
