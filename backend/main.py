@@ -33,9 +33,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+import requests
+
 @app.get("/")
 def read_root():
     return {"status": "ok", "message": "Gizbar Trading Bot Backend is running"}
+
+@app.get("/system-info")
+def get_system_info():
+    """
+    Returns system information including the public IP address of the server.
+    Useful for whitelisting the IP in Binance.
+    """
+    try:
+        ip = requests.get("https://api.ipify.org").text
+        return {"public_ip": ip}
+    except Exception as e:
+        return {"error": str(e)}
 
 class SignalPayload(BaseModel):
     symbol: str
