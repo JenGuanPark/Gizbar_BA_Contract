@@ -338,6 +338,59 @@ def close_position(payload: SignalPayload, session: Session = Depends(get_sessio
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/daily_pnl")
+def get_daily_pnl():
+    """
+    返回最近 90 天每日盈亏数据，用于前端图表展示。
+    返回格式: [{date, daily_pnl, cumulative_pnl}]
+    """
+    if not binance_service.client:
+        return []
+    try:
+        import time as _time
+        from collections import defaultdict
+
+        end_time = int(_time.time() * 1000)
+        start_time = end_time - (90 * 24 * 60 * 60 * 1000)
+
+        all_income = []
+        current_start = start_time
+        while current_start < end_time:
+            batch = binance_service.client.futures_income_history(
+                startTime=current_start,
+                endTime=end_time,
+                limit=1000
+            )
+            if not batch:
+                break
+            all_income.extend(batch)
+            if len(batch) < 1000:
+                break
+            current_start = int(batch[-1]['time']) + 1
+
+        daily = defaultdict(float)
+        for item in all_income:
+            if item['incomeType'] in ['REALIZED_PNL', 'COMMISSION', 'FUNDING_FEE']:
+                ts = int(item['time'])
+                from datetime import datetime, timezone
+                date_str = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).strftime('%Y-%m-%d')
+                daily[date_str] += float(item['income'])
+
+        sorted_days = sorted(daily.keys())
+        result = []
+        cumulative = 0.0
+        for d in sorted_days:
+            cumulative += daily[d]
+            result.append({
+                "date": d,
+                "daily_pnl": round(daily[d], 4),
+                "cumulative_pnl": round(cumulative, 4)
+            })
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching daily pnl: {e}", exc_info=True)
+        return []
+
 @app.get("/api/debug/income_history")
 def debug_income_history():
     """查看 income history 原始数据，用于排查 Realized PnL 计算问题"""

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Layout, Typography, Table, Card, Row, Col, Tag, Button, Alert, message, Popconfirm, Statistic, ConfigProvider, theme, Badge, Space, Empty } from 'antd';
+import DailyPnlChart from './DailyPnlChart';
 import { 
   ReloadOutlined, 
   StopOutlined,
@@ -35,6 +36,7 @@ const App = () => {
     totalHistoryPnl: 0,
     is_demo: false
   });
+  const [dailyPnl, setDailyPnl] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState(null);
@@ -52,10 +54,11 @@ const App = () => {
       const results = await Promise.allSettled([
         axios.get(`${API_BASE_URL}/positions`),
         axios.get(`${API_BASE_URL}/signals`),
-        axios.get(`${API_BASE_URL}/balance`)
+        axios.get(`${API_BASE_URL}/balance`),
+        axios.get(`${API_BASE_URL}/api/daily_pnl`)
       ]);
 
-      const [posRes, sigRes, balRes] = results;
+      const [posRes, sigRes, balRes, dailyRes] = results;
       
       console.log("Debug: Positions Response", posRes);
 
@@ -65,6 +68,10 @@ const App = () => {
       
       if (sigRes.status === 'fulfilled') {
         setSignals(sigRes.value.data);
+      }
+
+      if (dailyRes.status === 'fulfilled' && Array.isArray(dailyRes.value.data)) {
+        setDailyPnl(dailyRes.value.data);
       }
 
       if (balRes.status === 'fulfilled') {
@@ -355,6 +362,29 @@ const App = () => {
                   valueStyle={{ color: '#fff', fontSize: 24 }}
                   suffix={<span style={{ fontSize: 14, color: '#666' }}>个</span>}
                 />
+              </Card>
+            </Col>
+          </Row>
+
+          {/* 每日资金盈亏曲线 */}
+          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+            <Col xs={24}>
+              <Card
+                bordered={false}
+                title={
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Space>
+                      <RiseOutlined style={{ color: '#00b96b' }} />
+                      <span>每日资金盈亏 (近90天)</span>
+                    </Space>
+                    <span style={{ fontSize: 12, color: '#555', fontWeight: 'normal' }}>
+                      柱状：当日盈亏 &nbsp;|&nbsp; 曲线：累计盈亏
+                    </span>
+                  </div>
+                }
+                bodyStyle={{ padding: '16px 24px 20px' }}
+              >
+                <DailyPnlChart data={dailyPnl} />
               </Card>
             </Col>
           </Row>
