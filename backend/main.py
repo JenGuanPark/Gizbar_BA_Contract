@@ -338,6 +338,41 @@ def close_position(payload: SignalPayload, session: Session = Depends(get_sessio
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/debug/income_history")
+def debug_income_history():
+    """查看 income history 原始数据，用于排查 Realized PnL 计算问题"""
+    if not binance_service.client:
+        return {"error": "Client not initialized"}
+    try:
+        import time as _time
+        end_time = int(_time.time() * 1000)
+        start_time = end_time - (90 * 24 * 60 * 60 * 1000)
+
+        records = binance_service.client.futures_income_history(
+            startTime=start_time,
+            endTime=end_time,
+            limit=100
+        )
+
+        pnl_sum = sum(float(r['income']) for r in records
+                       if r['incomeType'] in ['REALIZED_PNL', 'COMMISSION', 'FUNDING_FEE'])
+
+        type_counts = {}
+        for r in records:
+            t = r['incomeType']
+            type_counts[t] = type_counts.get(t, 0) + 1
+
+        return {
+            "total_records": len(records),
+            "type_counts": type_counts,
+            "pnl_sum_sample": round(pnl_sum, 4),
+            "calculated_total": binance_service.get_total_history_pnl(),
+            "first_5": records[:5] if records else [],
+            "last_5": records[-5:] if records else []
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/positions")
 def get_positions():
     return binance_service.get_positions()

@@ -100,24 +100,41 @@ class BinanceService:
         return round(int(price / tick_size) * tick_size, precision)
 
     def get_total_history_pnl(self):
+        """
+        从币安合约账户获取已实现盈亏（含手续费和资金费）。
+        使用分页拉取最近 90 天的 income history，确保数据完整。
+        """
         if not self.client:
             return 0.0
         try:
-            # Fetch income history (REALIZED_PNL, COMMISSION, FUNDING_FEE)
-            # Note: By default this gets the last 1000 entries or recent 7 days.
-            # For a more complete history, we might need to iterate with startTime, 
-            # but for now, 1000 entries is a good start for recent history.
-            trade_history = self.client.futures_income_history(limit=1000)
+            end_time = int(time.time() * 1000)
+            start_time = end_time - (90 * 24 * 60 * 60 * 1000)
+
+            all_income = []
+            current_start = start_time
+
+            while current_start < end_time:
+                batch = self.client.futures_income_history(
+                    startTime=current_start,
+                    endTime=end_time,
+                    limit=1000
+                )
+                if not batch:
+                    break
+                all_income.extend(batch)
+                if len(batch) < 1000:
+                    break
+                current_start = int(batch[-1]['time']) + 1
+
             total_pnl = 0.0
-            
-            for income in trade_history:
-                # Sum up PnL, Commission (negative), and Funding Fee (can be pos/neg)
+            for income in all_income:
                 if income['incomeType'] in ['REALIZED_PNL', 'COMMISSION', 'FUNDING_FEE']:
                     total_pnl += float(income['income'])
-            
+
+            logger.info(f"History PnL: {total_pnl:.4f} from {len(all_income)} income records (90d window)")
             return total_pnl
-        except BinanceAPIException as e:
-            logger.error(f"Error fetching income history: {e}")
+        except Exception as e:
+            logger.error(f"Error fetching income history: {e}", exc_info=True)
             return 0.0
 
     def get_account_summary(self):
